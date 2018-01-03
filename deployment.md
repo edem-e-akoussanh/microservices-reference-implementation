@@ -80,6 +80,12 @@ export COSMOSDB_NAME="${UNIQUE_APP_NAME_PREFIX}-delivery-service-cosmosdb" && \
 export DATABASE_NAME="${COSMOSDB_NAME}-db" && \
 export COLLECTION_NAME="${DATABASE_NAME}-col"
 
+export EH_NS=[DELIVERY_EVENT_HUB_NAMESPACE_HERE]
+export EH_NAME=[DELIVERY_EVENT_HUB_NAME_HERE]
+export EH_CONSUMERGROUP_NAME=[DELIVERY_EVENT_HUB_CONSUMERGROUP_NAME_HERE]
+
+
+
 # Create Azure Redis Cache
 az redis create --location $LOCATION \
             --name $REDIS_NAME \
@@ -107,6 +113,15 @@ az cosmosdb collection create \
     --name $COSMOSDB_NAME \
     --db-name $DATABASE_NAME \
     --resource-group $RESOURCE_GROUP
+
+# Create Event Hub 
+wget https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-event-hubs-create-event-hub-and-consumer-group/azuredeploy.json && \
+az group deployment create -g $RESOURCE_GROUP --template-file azuredeploy.json  --parameters \
+'{ \
+  "namespaceName": {"value": "'${EH_NS}'"}, \
+  "eventHubName": {"value": "'${EH_NAME}'"}, \
+  "consumerGroupName": {"value": "'${EH_CONSUMERGROUP_NAME}'"} \
+}'
 ```
 
 Build the Delivery service
@@ -132,15 +147,16 @@ Create Kubernetes secrets
 
 ```bash
 export REDIS_CONNECTION_STRING=[YOUR_REDIS_CONNECTION_STRING]
+export EH_CONNECTION_STRING=[YOUR_EH_CONNECTION_STRING]
 
 export COSMOSDB_KEY=$(az cosmosdb list-keys --name $COSMOSDB_NAME --resource-group $RESOURCE_GROUP --query primaryMasterKey) && \
-export COSMOSDB_ENDPOINT=$(az cosmosdb show --name $COSMOSDB_NAME --resource-group $RESOURCE_GROUP --query documentEndpoint)
+export COSMOSDB_ENDPOINT=$(az cosmosdb show --name $COSMOSDB_NAME --resource-group $RESOURCE_GROUP --query documentEndpoint) 
 
 kubectl --namespace bc-shipping create --save-config=true secret generic delivery-storageconf \
     --from-literal=CosmosDB_Key=${COSMOSDB_KEY[@]//\"/} \
     --from-literal=CosmosDB_Endpoint=${COSMOSDB_ENDPOINT[@]//\"/} \
     --from-literal=Redis_ConnectionString=${REDIS_CONNECTION_STRING} \
-    --from-literal=EH_ConnectionString=
+    --from-literal=EH_ConnectionString=${EH_CONNECTION_STRING[@]//\"/}
 ```
 
 Deploy the Delivery service:
